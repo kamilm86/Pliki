@@ -1,0 +1,116 @@
+
+Aby wykorzystać auto_arima do automatycznego dopasowania najlepszych parametrów dla modelu ARIMA, możemy skorzystać z biblioteki pmdarima. Biblioteka ta automatycznie dobiera parametry modelu ARIMA na podstawie danych wejściowych.
+
+1. Importowanie bibliotek
+Najpierw zaimportujemy niezbędne biblioteki.
+
+python
+Skopiuj kod
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import mean_squared_error
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from pmdarima import auto_arima
+2. Wczytanie danych
+Załadujemy dane do Pandas DataFrame.
+
+python
+Skopiuj kod
+# Wczytanie danych
+df = pd.read_csv('cumulative_sales_data.csv')
+
+# Przekształcenie daty na format daty
+df['Date'] = pd.to_datetime(df['Date'])
+df.set_index('Date', inplace=True)
+
+# Wyświetlenie pierwszych kilku wierszy danych
+print(df.head())
+3. Eksploracja danych
+Zbadamy dane, aby zrozumieć ich strukturę i odnaleźć potencjalne wzorce.
+
+python
+Skopiuj kod
+# Podstawowe informacje o danych
+print(df.info())
+
+# Opis statystyczny danych
+print(df.describe())
+
+# Wizualizacja danych sprzedażowych w czasie
+plt.figure(figsize=(10, 6))
+sns.lineplot(data=df, x='Date', y='CumulativeSales')
+plt.title('Cumulative Sales Over Time')
+plt.xlabel('Date')
+plt.ylabel('Cumulative Sales')
+plt.show()
+4. Podział danych na zbiór treningowy i testowy
+Podzielimy dane na zbiór treningowy i testowy.
+
+python
+Skopiuj kod
+# Podział danych na zbiór treningowy i testowy
+train_size = int(len(df) * 0.8)
+train, test = df[:train_size], df[train_size:]
+5. Użycie auto_arima do dopasowania najlepszego modelu ARIMA
+python
+Skopiuj kod
+# Dopasowanie najlepszego modelu ARIMA za pomocą auto_arima
+arima_model = auto_arima(train['CumulativeSales'], 
+                         seasonal=False, 
+                         stepwise=True,
+                         trace=True)
+
+# Wyświetlenie podsumowania modelu
+print(arima_model.summary())
+
+# Prognozowanie
+arima_forecast = arima_model.predict(n_periods=len(test))
+
+# Ewaluacja modelu ARIMA
+mse_arima = mean_squared_error(test['CumulativeSales'], arima_forecast)
+print(f'Auto ARIMA Mean Squared Error: {mse_arima}')
+
+# Wizualizacja prognozy ARIMA
+plt.figure(figsize=(10, 6))
+plt.plot(train['CumulativeSales'], label='Train')
+plt.plot(test['CumulativeSales'], label='Test')
+plt.plot(test.index, arima_forecast, label='Auto ARIMA Forecast')
+plt.legend()
+plt.show()
+6. Użycie auto_arima do dopasowania najlepszego modelu SARIMA
+python
+Skopiuj kod
+# Dopasowanie najlepszego modelu SARIMA za pomocą auto_arima
+sarima_model = auto_arima(train['CumulativeSales'], 
+                          seasonal=True, 
+                          m=12,  # okresowość roczna
+                          stepwise=True,
+                          trace=True)
+
+# Wyświetlenie podsumowania modelu
+print(sarima_model.summary())
+
+# Prognozowanie
+sarima_forecast = sarima_model.predict(n_periods=len(test))
+
+# Ewaluacja modelu SARIMA
+mse_sarima = mean_squared_error(test['CumulativeSales'], sarima_forecast)
+print(f'Auto SARIMA Mean Squared Error: {mse_sarima}')
+
+# Wizualizacja prognozy SARIMA
+plt.figure(figsize=(10, 6))
+plt.plot(train['CumulativeSales'], label='Train')
+plt.plot(test['CumulativeSales'], label='Test')
+plt.plot(test.index, sarima_forecast, label='Auto SARIMA Forecast')
+plt.legend()
+plt.show()
+Podsumowanie
+Powyższy kod przedstawia pełne wdrożenie auto_arima do automatycznego dopasowania najlepszych parametrów modeli ARIMA i SARIMA do prognozowania narastającej sprzedaży. Dzięki auto_arima, proces doboru parametrów modeli jest automatyzowany, co może prowadzić do bardziej optymalnych i dokładnych prognoz.
+
+Wnioski i Dalsze Kroki
+Porównanie modeli: Porównaj wyniki modeli ARIMA i SARIMA, aby zobaczyć, który z nich daje lepsze wyniki.
+Optymalizacja: Jeśli to konieczne, można ręcznie dostosować parametry auto_arima i przetestować różne konfiguracje.
+Dalsze ulepszenia: Rozważ zastosowanie bardziej zaawansowanych technik szeregów czasowych lub kombinacji modeli, aby poprawić prognozy.
+Implementacja i optymalizacja modeli wymaga iteracyjnego podejścia, dlatego warto regularnie testować i dostosowywać modele do specyfiki danych.
