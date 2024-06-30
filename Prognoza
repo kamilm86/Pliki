@@ -1,0 +1,254 @@
+Poniżej znajduje się kompletny przykład programu w Pythonie, który wykorzystuje uczenie maszynowe do prognozowania sprzedaży. W tym przykładzie użyjemy bibliotek takich jak pandas do manipulacji danymi, matplotlib oraz seaborn do wizualizacji, a także scikit-learn do budowy i ewaluacji modelu.
+
+1. Importowanie bibliotek
+Najpierw zaimportujemy niezbędne biblioteki.
+
+python
+Skopiuj kod
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+2. Wczytanie danych
+Załadujemy dane sprzedażowe do Pandas DataFrame. Załóżmy, że mamy dane w pliku CSV.
+
+python
+Skopiuj kod
+# Wczytanie danych
+df = pd.read_csv('sales_data.csv')
+
+# Wyświetlenie pierwszych kilku wierszy danych
+print(df.head())
+3. Eksploracja danych
+Zbadamy dane, aby zrozumieć ich strukturę i odnaleźć potencjalne wzorce.
+
+python
+Skopiuj kod
+# Podstawowe informacje o danych
+print(df.info())
+
+# Opis statystyczny danych
+print(df.describe())
+
+# Wizualizacja danych sprzedażowych w czasie
+plt.figure(figsize=(10, 6))
+sns.lineplot(x='Date', y='Sales', data=df)
+plt.title('Sales Over Time')
+plt.xlabel('Date')
+plt.ylabel('Sales')
+plt.show()
+4. Przygotowanie danych
+Przygotujemy dane do modelowania, tj. podzielimy je na cechy (features) i etykiety (labels), a następnie na zbiór treningowy i testowy.
+
+python
+Skopiuj kod
+# Przekształcenie daty na format daty
+df['Date'] = pd.to_datetime(df['Date'])
+
+# Tworzenie nowych cech z daty
+df['Year'] = df['Date'].dt.year
+df['Month'] = df['Date'].dt.month
+df['Day'] = df['Date'].dt.day
+df['DayOfWeek'] = df['Date'].dt.dayofweek
+
+# Wybór cech i etykiety
+features = df[['Year', 'Month', 'Day', 'DayOfWeek']]
+labels = df['Sales']
+
+# Podział danych na zbiory treningowy i testowy
+X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+5. Trening modelu
+Wytrenujemy model regresji liniowej na danych treningowych.
+
+python
+Skopiuj kod
+# Inicjalizacja i trening modelu
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Prognozowanie na zbiorze testowym
+y_pred = model.predict(X_test)
+6. Ewaluacja modelu
+Ocenimy wydajność modelu za pomocą różnych metryk.
+
+python
+Skopiuj kod
+# Obliczanie metryk ewaluacyjnych
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f'Mean Squared Error: {mse}')
+print(f'R^2 Score: {r2}')
+
+# Wizualizacja wyników
+plt.figure(figsize=(10, 6))
+plt.scatter(y_test, y_pred)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+plt.title('Actual vs Predicted Sales')
+plt.xlabel('Actual Sales')
+plt.ylabel('Predicted Sales')
+plt.show()
+7. Scenariusze rozwiązania
+Rozważmy możliwe scenariusze i dalsze kroki:
+
+Poprawa modelu: Możemy rozważyć bardziej zaawansowane modele jak Random Forest, Gradient Boosting, czy sieci neuronowe.
+Feature Engineering: Dodanie nowych cech jak sezonowość, promocje, czy dane ekonomiczne może poprawić dokładność prognoz.
+Model Ensemble: Połączenie wyników wielu modeli może prowadzić do lepszej predykcji.
+Walidacja Krzyżowa: Użycie walidacji krzyżowej może dać bardziej niezawodne oszacowanie wydajności modelu.
+Przykładowe zaawansowane wizualizacje
+Dodanie bardziej zaawansowanych wizualizacji pomoże lepiej zrozumieć dane i model.
+
+python
+Skopiuj kod
+# Wizualizacja rozkładu błędów
+plt.figure(figsize=(10, 6))
+sns.histplot(y_test - y_pred, kde=True)
+plt.title('Distribution of Prediction Errors')
+plt.xlabel('Error')
+plt.ylabel('Frequency')
+plt.show()
+
+# Wykres reszt w czasie
+plt.figure(figsize=(10, 6))
+sns.scatterplot(x=df['Date'].loc[y_test.index], y=y_test - y_pred)
+plt.axhline(0, color='red', linestyle='--')
+plt.title('Residuals Over Time')
+plt.xlabel('Date')
+plt.ylabel('Residuals')
+plt.show()
+Podsumowanie
+Powyższy program jest kompletnym rozwiązaniem do prognozowania sprzedaży przy użyciu regresji liniowej w Pythonie. Można go łatwo rozszerzyć i poprawić, wykorzystując bardziej zaawansowane techniki i modele.
+
+
+
+
+Jak sprawdzić czy zmiana celu wpływa na realizację sprzedaży ?
+
+ChatGPT
+Aby sprawdzić, czy zmiana celu wpływa na realizację sprzedaży, możemy użyć analizy statystycznej i modelowania. Oto jak można to zrobić krok po kroku:
+
+1. Zbiór Danych
+Zakładamy, że mamy dane zawierające informacje o celach sprzedażowych i rzeczywistej sprzedaży w różnych okresach.
+
+2. Importowanie bibliotek
+Najpierw zaimportujemy niezbędne biblioteki.
+
+python
+Skopiuj kod
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+3. Wczytanie danych
+Załadujemy dane do Pandas DataFrame.
+
+python
+Skopiuj kod
+# Wczytanie danych
+df = pd.read_csv('sales_target_data.csv')
+
+# Wyświetlenie pierwszych kilku wierszy danych
+print(df.head())
+4. Eksploracja danych
+Zbadamy dane, aby zrozumieć ich strukturę i odnaleźć potencjalne wzorce.
+
+python
+Skopiuj kod
+# Podstawowe informacje o danych
+print(df.info())
+
+# Opis statystyczny danych
+print(df.describe())
+
+# Wizualizacja danych sprzedażowych w czasie
+plt.figure(figsize=(10, 6))
+sns.lineplot(x='Date', y='Sales', data=df, label='Actual Sales')
+sns.lineplot(x='Date', y='Target', data=df, label='Sales Target')
+plt.title('Sales and Sales Targets Over Time')
+plt.xlabel('Date')
+plt.ylabel('Sales')
+plt.legend()
+plt.show()
+5. Analiza Korelacji
+Sprawdzimy korelację między celem sprzedażowym a rzeczywistą sprzedażą.
+
+python
+Skopiuj kod
+# Obliczanie korelacji
+correlation = df['Sales'].corr(df['Target'])
+print(f'Correlation between Sales and Target: {correlation}')
+6. Analiza statystyczna
+Użyjemy testu t-Studenta do porównania średniej sprzedaży w różnych okresach (przed i po zmianie celu).
+
+python
+Skopiuj kod
+# Zakładamy, że zmiana celu nastąpiła w określonym punkcie w czasie
+change_date = '2023-01-01'
+df['Date'] = pd.to_datetime(df['Date'])
+
+# Podział danych na przed i po zmianie celu
+before_change = df[df['Date'] < change_date]['Sales']
+after_change = df[df['Date'] >= change_date]['Sales']
+
+# Test t-Studenta
+t_stat, p_value = stats.ttest_ind(before_change, after_change)
+print(f'T-statistic: {t_stat}')
+print(f'P-value: {p_value}')
+7. Modelowanie
+Zbudujemy prosty model regresji liniowej, aby zobaczyć, jak zmiana celu wpływa na sprzedaż.
+
+python
+Skopiuj kod
+# Dodanie zmiennej dummy dla zmiany celu
+df['Target_Change'] = (df['Date'] >= change_date).astype(int)
+
+# Wybór cech i etykiety
+features = df[['Target', 'Target_Change']]
+labels = df['Sales']
+
+# Podział danych na zbiory treningowy i testowy
+X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
+
+# Inicjalizacja i trening modelu
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Prognozowanie na zbiorze testowym
+y_pred = model.predict(X_test)
+
+# Obliczanie metryk ewaluacyjnych
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print(f'Mean Squared Error: {mse}')
+print(f'R^2 Score: {r2}')
+8. Wizualizacja wyników
+python
+Skopiuj kod
+# Wizualizacja rzeczywistych vs prognozowanych wyników
+plt.figure(figsize=(10, 6))
+plt.scatter(y_test, y_pred)
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
+plt.title('Actual vs Predicted Sales')
+plt.xlabel('Actual Sales')
+plt.ylabel('Predicted Sales')
+plt.show()
+
+# Wizualizacja rozkładu błędów
+plt.figure(figsize=(10, 6))
+sns.histplot(y_test - y_pred, kde=True)
+plt.title('Distribution of Prediction Errors')
+plt.xlabel('Error')
+plt.ylabel('Frequency')
+plt.show()
+Wnioski
+Korelacja: Jeśli korelacja między celem a rzeczywistą sprzedażą jest wysoka, oznacza to, że cele mają znaczący wpływ na sprzedaż.
+Analiza statystyczna: Jeśli p-wartość testu t-Studenta jest niska (np. < 0.05), możemy odrzucić hipotezę zerową, że zmiana celu nie ma wpływu na sprzedaż.
+Modelowanie: Model regresji liniowej pomoże zrozumieć, jak zmiana celu wpływa na sprzedaż. Jeśli współczynnik przy zmiennej Target_Change jest istotny, oznacza to, że zmiana celu miała wpływ na sprzedaż.
+Powyższy program pozwala przeprowadzić kompleksową analizę, aby odpowiedzieć na pytanie, czy zmiana celu wpływa na realizację sprzedaży.
