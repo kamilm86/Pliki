@@ -1,109 +1,25 @@
-Program do wyliczenia prognozy sprzedaży na koniec miesiąca za pomocą XGBoost w Pythonie wymaga kilku kroków: zbierania danych, przygotowania danych, trenowania modelu, prognozowania oraz wizualizacji wyników. Poniżej znajdziesz szczegółowy opis każdego z tych kroków wraz z przykładowym kodem.
+Masz rację. X_test nie zawiera kolumny date, ponieważ po podziale danych na cechy (features) i cel (target), kolumna date została pominięta. Możemy użyć oryginalnych danych do wizualizacji rzeczywistych wartości sprzedaży. Aby to zrobić, musimy zadbać o to, by daty odpowiadały wartościom w X_test.
+
+Poniżej znajduje się poprawiony kod, który obejmuje generowanie prognoz na zbiorze testowym i ich wizualizację wraz z rzeczywistymi danymi sprzedaży.
 
 1. Zbieranie danych
-Dane sprzedaży mogą pochodzić z różnych źródeł, takich jak pliki CSV, bazy danych, API itp. Na potrzeby tego przykładu załóżmy, że mamy dane w pliku CSV.
-
 python
 Skopiuj kod
 import pandas as pd
 
 # Wczytanie danych z pliku CSV
 data = pd.read_csv('sales_data.csv')
+
+# Konwersja kolumny daty na typ datetime
+data['date'] = pd.to_datetime(data['date'])
 
 # Wyświetlenie kilku pierwszych wierszy danych
 print(data.head())
 2. Przygotowanie danych
-Przygotowanie danych obejmuje czyszczenie, przekształcanie i podział na zbiór treningowy oraz testowy. Zakładamy, że dane zawierają kolumny takie jak date, sales, features.
-
 python
 Skopiuj kod
 import numpy as np
 from sklearn.model_selection import train_test_split
-
-# Konwersja kolumny daty na typ datetime
-data['date'] = pd.to_datetime(data['date'])
-
-# Ekstrakcja cech czasowych
-data['year'] = data['date'].dt.year
-data['month'] = data['date'].dt.month
-data['day'] = data['date'].dt.day
-
-# Przygotowanie cech (features) i celu (target)
-X = data[['year', 'month', 'day', 'features']]
-y = data['sales']
-
-# Podział danych na zbiór treningowy i testowy
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-3. Trenowanie modelu
-XGBoost to wydajna biblioteka do boostingu drzew decyzyjnych. Instalacja: pip install xgboost.
-
-python
-Skopiuj kod
-import xgboost as xgb
-from sklearn.metrics import mean_squared_error
-
-# Inicjalizacja i trenowanie modelu XGBoost
-model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=100, learning_rate=0.1, max_depth=5)
-model.fit(X_train, y_train)
-
-# Prognozowanie na zbiorze testowym
-y_pred = model.predict(X_test)
-
-# Obliczenie błędu średniokwadratowego (MSE)
-mse = mean_squared_error(y_test, y_pred)
-print(f'MSE: {mse}')
-4. Prognozowanie
-Prognozowanie sprzedaży na koniec miesiąca.
-
-python
-Skopiuj kod
-# Prognozowanie sprzedaży na koniec miesiąca
-last_date = data['date'].max()
-next_date = last_date + pd.DateOffset(months=1)
-
-next_month_features = np.array([[next_date.year, next_date.month, next_date.day, some_feature_value]])
-next_month_sales_pred = model.predict(next_month_features)
-print(f'Prognozowana sprzedaż na koniec miesiąca: {next_month_sales_pred[0]}')
-5. Wizualizacja wyników
-Użycie bibliotek do wizualizacji, takich jak Matplotlib i Seaborn.
-
-python
-Skopiuj kod
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Wizualizacja rzeczywistych vs prognozowanych wartości sprzedaży
-plt.figure(figsize=(10, 6))
-plt.plot(data['date'], data['sales'], label='Rzeczywiste dane sprzedaży')
-plt.plot(X_test['date'], y_pred, label='Prognozowane dane sprzedaży', linestyle='--')
-plt.xlabel('Data')
-plt.ylabel('Sprzedaż')
-plt.title('Rzeczywiste vs Prognozowane dane sprzedaży')
-plt.legend()
-plt.show()
-Podsumowanie
-Ten program obejmuje pełny cykl przygotowania danych, trenowania modelu XGBoost, prognozowania sprzedaży i wizualizacji wyników. Dostosowanie kodu do specyficznych wymagań, takich jak różne źródła danych lub dodatkowe cechy, może wymagać dalszych modyfikacji.
-
-
-Rzeczywiście, parametr some_feature_value powinien być zdefiniowany, aby umożliwić prognozowanie sprzedaży na koniec miesiąca. Powinniśmy uwzględnić wszystkie cechy używane do trenowania modelu. Poniżej przedstawię bardziej szczegółowy przykład, w którym założymy, że mamy kilka dodatkowych cech i wartości, które będą używane do prognozowania.
-
-Zakładając, że dodatkowe cechy to promotion, holiday, weekday, itp., możemy wygenerować te wartości na podstawie znanych informacji lub użyć średnich historycznych wartości dla prognozy.
-
-1. Zbieranie danych
-Zakładamy, że plik CSV zawiera kolumny date, sales, promotion, holiday, features.
-
-2. Przygotowanie danych
-python
-Skopiuj kod
-import pandas as pd
-import numpy as np
-from sklearn.model_selection import train_test_split
-
-# Wczytanie danych z pliku CSV
-data = pd.read_csv('sales_data.csv')
-
-# Konwersja kolumny daty na typ datetime
-data['date'] = pd.to_datetime(data['date'])
 
 # Ekstrakcja cech czasowych
 data['year'] = data['date'].dt.year
@@ -118,6 +34,9 @@ y = data['sales']
 
 # Podział danych na zbiór treningowy i testowy
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Zapisanie dat dla zbioru testowego do późniejszej wizualizacji
+dates_test = data.loc[X_test.index, 'date']
 3. Trenowanie modelu
 python
 Skopiuj kod
@@ -135,8 +54,6 @@ y_pred = model.predict(X_test)
 mse = mean_squared_error(y_test, y_pred)
 print(f'MSE: {mse}')
 4. Prognozowanie
-Aby prognozować sprzedaż na koniec przyszłego miesiąca, musimy wziąć pod uwagę cechy dla tej daty.
-
 python
 Skopiuj kod
 # Prognozowanie sprzedaży na koniec miesiąca
@@ -165,10 +82,10 @@ import seaborn as sns
 # Wizualizacja rzeczywistych vs prognozowanych wartości sprzedaży
 plt.figure(figsize=(10, 6))
 plt.plot(data['date'], data['sales'], label='Rzeczywiste dane sprzedaży')
-plt.plot(X_test['date'], y_pred, label='Prognozowane dane sprzedaży', linestyle='--')
+plt.plot(dates_test, y_pred, label='Prognozowane dane sprzedaży', linestyle='--', marker='o')
 plt.xlabel('Data')
 plt.ylabel('Sprzedaż')
 plt.title('Rzeczywiste vs Prognozowane dane sprzedaży')
 plt.legend()
 plt.show()
-Ten kompletny przykład powinien pozwolić na wykonanie prognozy sprzedaży na koniec miesiąca za pomocą modelu XGBoost, przy założeniu, że masz odpowiednie dane historyczne i cechy. Upewnij się, że wartości cech są odpowiednio określone na podstawie dostępnych informacji lub historycznych danych.
+W ten sposób wizualizacja będzie prawidłowa, ponieważ użyjemy oryginalnych dat z dates_test do dopasowania prognozowanych wartości sprzedaży. Dzięki temu wykres przedstawia zarówno rzeczywiste, jak i prognozowane dane w jednym miejscu.
