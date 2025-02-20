@@ -1,254 +1,74 @@
-Poniżej znajduje się kompletny przykład programu w Pythonie, który wykorzystuje uczenie maszynowe do prognozowania sprzedaży. W tym przykładzie użyjemy bibliotek takich jak pandas do manipulacji danymi, matplotlib oraz seaborn do wizualizacji, a także scikit-learn do budowy i ewaluacji modelu.
+-- 1. Tworzenie tymczasowej tabeli do logowania zmian
+CREATE TABLE #Anonimization_Log (
+    ClientID NVARCHAR(50), -- ID klienta (np. NR_KLIENTA)
+    TableName NVARCHAR(128), -- Nazwa tabeli
+    ColumnName NVARCHAR(128), -- Nazwa kolumny
+    OldValue NVARCHAR(MAX), -- Wartość przed zmianą
+    NewValue NVARCHAR(MAX) -- Wartość po zmianie (stała)
+);
 
-1. Importowanie bibliotek
-Najpierw zaimportujemy niezbędne biblioteki.
+-- 2. Pobranie listy tabel i kolumn do anonimizacji
+DECLARE @SQL NVARCHAR(MAX) = '';
+DECLARE @TableName NVARCHAR(128), @ColumnName NVARCHAR(128), @IsClientID BIT, @IsPersonalData BIT;
 
-python
-Skopiuj kod
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
-2. Wczytanie danych
-Załadujemy dane sprzedażowe do Pandas DataFrame. Załóżmy, że mamy dane w pliku CSV.
+DECLARE cursor_tables CURSOR FOR 
+SELECT TableName, ColumnName, IsClientID, IsPersonalData 
+FROM Metadata_Tables_Columns 
+WHERE IsClientID = 1 OR IsPersonalData = 1;
 
-python
-Skopiuj kod
-# Wczytanie danych
-df = pd.read_csv('sales_data.csv')
+OPEN cursor_tables;
+FETCH NEXT FROM cursor_tables INTO @TableName, @ColumnName, @IsClientID, @IsPersonalData;
 
-# Wyświetlenie pierwszych kilku wierszy danych
-print(df.head())
-3. Eksploracja danych
-Zbadamy dane, aby zrozumieć ich strukturę i odnaleźć potencjalne wzorce.
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    -- Jeśli to kolumna z ID klienta, zapisujemy te wartości do późniejszego użycia
+    IF @IsClientID = 1
+    BEGIN
+        SET @SQL = 'SELECT DISTINCT ' + QUOTENAME(@ColumnName) + ' AS ClientID INTO #TempClients FROM ' + QUOTENAME(@TableName) + ' WHERE ' + QUOTENAME(@ColumnName) + ' IS NOT NULL';
+        EXEC sp_executesql @SQL;
+    END
 
-python
-Skopiuj kod
-# Podstawowe informacje o danych
-print(df.info())
+    -- Jeśli to kolumna z danymi osobowymi, anonimizujemy
+    IF @IsPersonalData = 1
+    BEGIN
+        DECLARE @NewValue NVARCHAR(MAX);
+        -- Ustalenie nowej wartości w zależności od typu danych
+        IF @ColumnName LIKE '%PESEL%' SET @NewValue = REPLICATE('1', 11); -- PESEL ma 11 cyfr
+        ELSE IF @ColumnName LIKE '%IMIE%' OR @ColumnName LIKE '%NAZWISKO%' SET @NewValue = 'Anonim';
+        ELSE IF @ColumnName LIKE '%TELEFON%' OR @ColumnName LIKE '%DOWOD%' OR @ColumnName LIKE '%NIP%' SET @NewValue = REPLICATE('0', 10); -- Założenie, że te numery mają 10 cyfr
+        ELSE IF @ColumnName LIKE '%REGON%' SET @NewValue = REPLICATE('0', 14); -- REGON ma 14 cyfr
+        ELSE IF @ColumnName LIKE '%EMAIL%' SET @NewValue = 'anonim@anonim.pl';
 
-# Opis statystyczny danych
-print(df.describe())
+        -- Aktualizacja danych i logowanie zmian
+        SET @SQL = '
+        UPDATE t SET ' + QUOTENAME(@ColumnName) + ' = @NewValue,
+        INSERT INTO #Anonimization_Log (ClientID, TableName, ColumnName, OldValue, NewValue)
+        SELECT c.ClientID, ''' + @TableName + ''', ''' + @ColumnName + ''', t.' + QUOTENAME(@ColumnName) + ', @NewValue
+        FROM ' + QUOTENAME(@TableName) + ' t
+        INNER JOIN #TempClients c ON t.' + QUOTENAME(@ColumnName) + ' = c.ClientID
+        WHERE t.' + QUOTENAME(@ColumnName) + ' != @NewValue OR t.' + QUOTENAME(@ColumnName) + ' IS NULL';
 
-# Wizualizacja danych sprzedażowych w czasie
-plt.figure(figsize=(10, 6))
-sns.lineplot(x='Date', y='Sales', data=df)
-plt.title('Sales Over Time')
-plt.xlabel('Date')
-plt.ylabel('Sales')
-plt.show()
-4. Przygotowanie danych
-Przygotujemy dane do modelowania, tj. podzielimy je na cechy (features) i etykiety (labels), a następnie na zbiór treningowy i testowy.
+        EXEC sp_executesql @SQL, N'@NewValue NVARCHAR(MAX)', @NewValue;
+    END
 
-python
-Skopiuj kod
-# Przekształcenie daty na format daty
-df['Date'] = pd.to_datetime(df['Date'])
+    FETCH NEXT FROM cursor_tables INTO @TableName, @ColumnName, @IsClientID, @IsPersonalData;
+END
 
-# Tworzenie nowych cech z daty
-df['Year'] = df['Date'].dt.year
-df['Month'] = df['Date'].dt.month
-df['Day'] = df['Date'].dt.day
-df['DayOfWeek'] = df['Date'].dt.dayofweek
+CLOSE cursor_tables;
+DEALLOCATE cursor_tables;
 
-# Wybór cech i etykiety
-features = df[['Year', 'Month', 'Day', 'DayOfWeek']]
-labels = df['Sales']
+-- 3. Generowanie raportu
+-- Raport zawiera tylko te rekordy, które zostały zmienione (OldValue różni się od NewValue)
+SELECT 
+    l.ClientID,
+    l.TableName,
+    l.ColumnName,
+    l.OldValue,
+    l.NewValue
+FROM #Anonimization_Log l
+WHERE l.OldValue IS NOT NULL AND l.OldValue != l.NewValue
+ORDER BY l.ClientID, l.TableName, l.ColumnName;
 
-# Podział danych na zbiory treningowy i testowy
-X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
-5. Trening modelu
-Wytrenujemy model regresji liniowej na danych treningowych.
-
-python
-Skopiuj kod
-# Inicjalizacja i trening modelu
-model = LinearRegression()
-model.fit(X_train, y_train)
-
-# Prognozowanie na zbiorze testowym
-y_pred = model.predict(X_test)
-6. Ewaluacja modelu
-Ocenimy wydajność modelu za pomocą różnych metryk.
-
-python
-Skopiuj kod
-# Obliczanie metryk ewaluacyjnych
-mse = mean_squared_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-
-print(f'Mean Squared Error: {mse}')
-print(f'R^2 Score: {r2}')
-
-# Wizualizacja wyników
-plt.figure(figsize=(10, 6))
-plt.scatter(y_test, y_pred)
-plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
-plt.title('Actual vs Predicted Sales')
-plt.xlabel('Actual Sales')
-plt.ylabel('Predicted Sales')
-plt.show()
-7. Scenariusze rozwiązania
-Rozważmy możliwe scenariusze i dalsze kroki:
-
-Poprawa modelu: Możemy rozważyć bardziej zaawansowane modele jak Random Forest, Gradient Boosting, czy sieci neuronowe.
-Feature Engineering: Dodanie nowych cech jak sezonowość, promocje, czy dane ekonomiczne może poprawić dokładność prognoz.
-Model Ensemble: Połączenie wyników wielu modeli może prowadzić do lepszej predykcji.
-Walidacja Krzyżowa: Użycie walidacji krzyżowej może dać bardziej niezawodne oszacowanie wydajności modelu.
-Przykładowe zaawansowane wizualizacje
-Dodanie bardziej zaawansowanych wizualizacji pomoże lepiej zrozumieć dane i model.
-
-python
-Skopiuj kod
-# Wizualizacja rozkładu błędów
-plt.figure(figsize=(10, 6))
-sns.histplot(y_test - y_pred, kde=True)
-plt.title('Distribution of Prediction Errors')
-plt.xlabel('Error')
-plt.ylabel('Frequency')
-plt.show()
-
-# Wykres reszt w czasie
-plt.figure(figsize=(10, 6))
-sns.scatterplot(x=df['Date'].loc[y_test.index], y=y_test - y_pred)
-plt.axhline(0, color='red', linestyle='--')
-plt.title('Residuals Over Time')
-plt.xlabel('Date')
-plt.ylabel('Residuals')
-plt.show()
-Podsumowanie
-Powyższy program jest kompletnym rozwiązaniem do prognozowania sprzedaży przy użyciu regresji liniowej w Pythonie. Można go łatwo rozszerzyć i poprawić, wykorzystując bardziej zaawansowane techniki i modele.
-
-
-
-
-Jak sprawdzić czy zmiana celu wpływa na realizację sprzedaży ?
-
-ChatGPT
-Aby sprawdzić, czy zmiana celu wpływa na realizację sprzedaży, możemy użyć analizy statystycznej i modelowania. Oto jak można to zrobić krok po kroku:
-
-1. Zbiór Danych
-Zakładamy, że mamy dane zawierające informacje o celach sprzedażowych i rzeczywistej sprzedaży w różnych okresach.
-
-2. Importowanie bibliotek
-Najpierw zaimportujemy niezbędne biblioteki.
-
-python
-Skopiuj kod
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy import stats
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
-3. Wczytanie danych
-Załadujemy dane do Pandas DataFrame.
-
-python
-Skopiuj kod
-# Wczytanie danych
-df = pd.read_csv('sales_target_data.csv')
-
-# Wyświetlenie pierwszych kilku wierszy danych
-print(df.head())
-4. Eksploracja danych
-Zbadamy dane, aby zrozumieć ich strukturę i odnaleźć potencjalne wzorce.
-
-python
-Skopiuj kod
-# Podstawowe informacje o danych
-print(df.info())
-
-# Opis statystyczny danych
-print(df.describe())
-
-# Wizualizacja danych sprzedażowych w czasie
-plt.figure(figsize=(10, 6))
-sns.lineplot(x='Date', y='Sales', data=df, label='Actual Sales')
-sns.lineplot(x='Date', y='Target', data=df, label='Sales Target')
-plt.title('Sales and Sales Targets Over Time')
-plt.xlabel('Date')
-plt.ylabel('Sales')
-plt.legend()
-plt.show()
-5. Analiza Korelacji
-Sprawdzimy korelację między celem sprzedażowym a rzeczywistą sprzedażą.
-
-python
-Skopiuj kod
-# Obliczanie korelacji
-correlation = df['Sales'].corr(df['Target'])
-print(f'Correlation between Sales and Target: {correlation}')
-6. Analiza statystyczna
-Użyjemy testu t-Studenta do porównania średniej sprzedaży w różnych okresach (przed i po zmianie celu).
-
-python
-Skopiuj kod
-# Zakładamy, że zmiana celu nastąpiła w określonym punkcie w czasie
-change_date = '2023-01-01'
-df['Date'] = pd.to_datetime(df['Date'])
-
-# Podział danych na przed i po zmianie celu
-before_change = df[df['Date'] < change_date]['Sales']
-after_change = df[df['Date'] >= change_date]['Sales']
-
-# Test t-Studenta
-t_stat, p_value = stats.ttest_ind(before_change, after_change)
-print(f'T-statistic: {t_stat}')
-print(f'P-value: {p_value}')
-7. Modelowanie
-Zbudujemy prosty model regresji liniowej, aby zobaczyć, jak zmiana celu wpływa na sprzedaż.
-
-python
-Skopiuj kod
-# Dodanie zmiennej dummy dla zmiany celu
-df['Target_Change'] = (df['Date'] >= change_date).astype(int)
-
-# Wybór cech i etykiety
-features = df[['Target', 'Target_Change']]
-labels = df['Sales']
-
-# Podział danych na zbiory treningowy i testowy
-X_train, X_test, y_train, y_test = train_test_split(features, labels, test_size=0.2, random_state=42)
-
-# Inicjalizacja i trening modelu
-model = LinearRegression()
-model.fit(X_train, y_train)
-
-# Prognozowanie na zbiorze testowym
-y_pred = model.predict(X_test)
-
-# Obliczanie metryk ewaluacyjnych
-mse = mean_squared_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-
-print(f'Mean Squared Error: {mse}')
-print(f'R^2 Score: {r2}')
-8. Wizualizacja wyników
-python
-Skopiuj kod
-# Wizualizacja rzeczywistych vs prognozowanych wyników
-plt.figure(figsize=(10, 6))
-plt.scatter(y_test, y_pred)
-plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'k--', lw=2)
-plt.title('Actual vs Predicted Sales')
-plt.xlabel('Actual Sales')
-plt.ylabel('Predicted Sales')
-plt.show()
-
-# Wizualizacja rozkładu błędów
-plt.figure(figsize=(10, 6))
-sns.histplot(y_test - y_pred, kde=True)
-plt.title('Distribution of Prediction Errors')
-plt.xlabel('Error')
-plt.ylabel('Frequency')
-plt.show()
-Wnioski
-Korelacja: Jeśli korelacja między celem a rzeczywistą sprzedażą jest wysoka, oznacza to, że cele mają znaczący wpływ na sprzedaż.
-Analiza statystyczna: Jeśli p-wartość testu t-Studenta jest niska (np. < 0.05), możemy odrzucić hipotezę zerową, że zmiana celu nie ma wpływu na sprzedaż.
-Modelowanie: Model regresji liniowej pomoże zrozumieć, jak zmiana celu wpływa na sprzedaż. Jeśli współczynnik przy zmiennej Target_Change jest istotny, oznacza to, że zmiana celu miała wpływ na sprzedaż.
-Powyższy program pozwala przeprowadzić kompleksową analizę, aby odpowiedzieć na pytanie, czy zmiana celu wpływa na realizację sprzedaży.
+-- 4. Czyszczenie tymczasowych tabel
+DROP TABLE #Anonimization_Log;
+DROP TABLE #TempClients;
